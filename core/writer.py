@@ -2,6 +2,9 @@ from queue import Queue, Empty
 from threading import Thread, Event, Lock
 import logging
 
+import core.df_classes as df_class 
+import core.io as io
+
 
 '''
 Currently if stop event is set then run() exits and the data left in the shared buffer is discarded.
@@ -15,7 +18,19 @@ class Writer(Thread):
     '''
     Writes channel data to h5 file.
     '''
-    def __init__(self, ch: int, flush_size: int, write_buffer: Queue, stop_event: Event):
+    def __init__(self, 
+                 ch           : int, 
+                 flush_size   : int, 
+                 write_buffer : Queue, 
+                 stop_event   : Event, 
+                 rec_config   : dict,
+                 dig_config   : dict,
+                 TIMESTAMP    : str,):
+        '''
+        TIMESTAMP should be provided to all channels identically before the
+        writer threads are initialised.
+        '''
+
         super().__init__(daemon=True)
         self.ch = ch
         self.flush_size = flush_size
@@ -23,14 +38,52 @@ class Writer(Thread):
         self.stop_event = stop_event
         self.filename = f"some_name_ch_{self.ch}"
         self.local_buffer = []
+        self.wf_size   = None
+
+        if file_name in self.rec_config:
+            file_path = self.rec_config['file_name']
+            file_path = f'{file_path}_{self.ch}_{TIMESTAMP}.h5'
+        else:
+            file_path = f'{self.ch}_{TIMESTAMP}.h5'
+        # initialise the h5, one per channel, each handled on a separate thread
+        self.h5file = tb.open_file(f'{file_path}')
+        # configs written 
+        io.create_config_table(self.h5file, self.rec_config, 'rec_conf', 'recording config')
+        io.create_config_table(self.h5file, self.dig_config, 'dig_conf', 'digitiser config')
+        # raw waveform group constructed
+        self.rwf_group = self.h5file.create_group('/', f'ch_{ch}', 'raw waveform')
+
 
     def write_h5(self):
         '''
         Write local buffer to h5 file and then clear local buffer.
 
+        assumption is that the local buffer contains tuples of:
+        (waveform_size, ADCs)
+        where ADCs is the actual raw waveform array
+
+        we need the waveform_size once
+
         ***This needs to be implemented.***
         '''
+
+        for wf_size, evt, rwf in self.local_buffer:
+
+            # if we know the size of the waveforms already, don't create the class again.
+            if self.wf_size is None:
+                self.wf_size = wf_size 
+                self.rwf_class = df_class.return_rwf_class(self.dig_config['dig_gen'], self.wf_size)
+                self.rwf_table = self.h5file.create_table(self.rwf_group, 'rwf', self.rwf_class, "raw waveforms")
+                self.rows      =  self.rwf_table.row
+
+            self.rows['evt_no'] = idk_bro_where_should_this_be_set?? 
+            self.rows['rwf']    = rwf 
+            self.rows.append()
+
+        # flush as fast as the buffer provides
+        self.rwf_table.flush()
         pass
+
 
     def run(self):
         '''
@@ -66,4 +119,6 @@ class Writer(Thread):
 
         ***This needs to be implemented.***
         '''
+        # close the h5 file
+        self.h5file.close()
         pass
