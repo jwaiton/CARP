@@ -49,6 +49,9 @@ class Controller:
         self.dig_config = dig_config
         self.rec_config = rec_config
 
+        # initialise a universal event counter for sanity purposes
+        self.event_counter = 0
+
         # Thread-safe communication channels
         self.cmd_buffer = Queue(maxsize=10)
         self.display_buffer = Queue(maxsize=1024)
@@ -91,7 +94,9 @@ class Controller:
                 break
 
             try:
+                # you must pass wf_size and ADCs through. 
                 wf_size, ADCs = data
+                self.event_counter += 1
 
                 # update visuals
                 self.main_window.screen.update_ch(np.arange(0, wf_size, dtype=wf_size.dtype), ADCs)
