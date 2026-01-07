@@ -25,6 +25,7 @@ from core.io import read_config_file
 from core.logging import setup_logging
 from core.commands import CommandType, Command
 from core.worker import AcquisitionWorker
+from core.writer import Writer
 from core.tracker import Tracker
 from felib.digitiser import Digitiser
 from ui import oscilloscope
@@ -52,21 +53,43 @@ class Controller:
         # Thread-safe communication channels
         self.cmd_buffer = Queue(maxsize=10)
         self.display_buffer = Queue(maxsize=1024)
-        self.stop_event = Event()
+        self.worker_stop_event = Event()
+        self.writer_buffer = Queue(maxsize=1024)
+        self.writer_stop_event = Event()
 
         # Acquisition worker
         self.worker = AcquisitionWorker(
             cmd_buffer=self.cmd_buffer,
             display_buffer=self.display_buffer,
-            stop_event=self.stop_event,
+            stop_event=self.worker_stop_event,
         )
 
         # Set the callback to the controller's data_handling method
         self.worker.data_ready_callback = self.data_handling
 
-        # Start thread and log
+        # Start acquisition worker thread and log
         self.worker.start()
         logging.info("Acquisition worker thread started.")
+
+        # Writer (1 channel for now)
+        self.writer = Writer(ch=0,
+                             flush_size=20,
+                             write_buffer=self.writer_buffer,
+                             stop_event=self.writer_stop_event
+        )
+
+        '''
+        # Multi channel 
+        self.num_ch = 4          # this should be in config file
+        self.flush_size = 20     # this should be in config file
+        self.writer_buffers = [Queue(maxsize=1024) for _ in range(self.num_ch)]
+        self.writers = [Writer(ch=i,
+                               flush_size=self.flush_size,
+                               write_buffer=self.writer_buffers[i],
+                               stop_event=self.writer_stop_event
+                        )
+                        for i in range(self.num_ch)]
+        '''
 
         # gui second
         self.app = QApplication([])
@@ -98,6 +121,15 @@ class Controller:
                 
                 # ping the tracker (make this optional)
                 self.tracker.track(ADCs.nbytes)
+
+                # push data to writer buffer 
+                self.write_buffer.put(data)
+
+                '''
+                # multi channel writing
+                wf_size, ADCs, ch = data
+                self.write_buffers[ch].put(data)
+                '''
 
             except Exception as e:
                 logging.exception(f"Error updating display: {e}")
@@ -148,15 +180,77 @@ class Controller:
         logging.info("Stopping acquisition.")
         self.cmd_buffer.put(Command(CommandType.STOP))
 
+    def start_recording(self):
+        '''
+        Start recording data.
+        '''
+        if not self.writer.is_alive():
+            self.writer.start()
+        logging.info("Writer (1 channel) thread started.")
+
+        '''
+        for w in self.writers:
+            if not self.w.is_alive():
+                w.start()
+                logging.info(f"Writer (channel {w.ch}) thread started.")
+        '''
+
+        logging.info("Starting recording.")
+        
+    def stop_recording(self):
+        '''
+        Stop recording data.
+        '''
+        self.writer_stop_event.set()
+        self.writer.join(timeout=2)
+        '''
+        for w in self.writers:
+            w.join(timeout=2) 
+        '''
+
+
+        logging.info("Stopping recording.")
+        self.cmd_buffer.put(Command(CommandType.STOP))
+
     def shutdown(self):
         '''
         Carefully shut down acquisition and worker thread.
         '''
         logging.info("Shutting down controller.")
+
+        # Acquisition Worker
         self.cmd_buffer.put(Command(CommandType.EXIT))
-        self.stop_event.set()
+        self.worker_stop_event.set()
         self.worker.join(timeout=2)
+
+        self.writer_stop_event.set()
+        self.writer.join(timeout=2)
+
+        '''
+        for w in self.writers:
+            w.join(timeout=2) 
+        '''
+
+        clean_shutdown = True
+
         if self.worker.is_alive():
+            clean_shutdown = False
             logging.warning("AcquisitionWorker did not stop cleanly.")
-        else:
+
+        if self.writer.is_alive():
+            clean_shutdown = False
+            logging.warning("Writer did not stop cleanly.")
+
+        '''
+        for w in self.writers:
+            if w.is_alive():
+                clean_shutdown = False
+                logging.warning(f"Writer (channel {w.ch}) did not stop cleanly.")
+
+        '''
+        
+        if clean_shutdown:
             logging.info("Controller shutdown complete.")
+
+        else:
+            logging.info("Controller shutdown failed.")

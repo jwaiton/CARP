@@ -177,3 +177,18 @@ class Acquisition(QGroupBox):
         if digitiser exists, must force digitiser.isAcquiring
         then enables digitiser.isRecording also
         '''
+        if self.recording:
+            logging.info('Stopping recording...')
+            self.record.setStyleSheet("background-color: green; color: black")
+            self.recording = False
+            # stop the recording
+            self.controller.stop_recording()
+        else:
+            if self.acquiring:
+                logging.info('Starting recording...')
+                self.record.setStyleSheet("background-color: red; color: white")
+                self.recording = True
+                # start the recording
+                self.controller.start_recording()
+            else:
+                logging.info('Attempted to record but failed since not acquiring...')
