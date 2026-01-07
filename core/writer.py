@@ -67,7 +67,7 @@ class Writer(Thread):
         ***This needs to be implemented.***
         '''
 
-        for wf_size, evt, rwf in self.local_buffer:
+        for wf_size, rwf, evt in self.local_buffer:
 
             # if we know the size of the waveforms already, don't create the class again.
             if self.wf_size is None:
@@ -76,7 +76,7 @@ class Writer(Thread):
                 self.rwf_table = self.h5file.create_table(self.rwf_group, 'rwf', self.rwf_class, "raw waveforms")
                 self.rows      =  self.rwf_table.row
 
-            self.rows['evt_no'] = idk_bro_where_should_this_be_set?? 
+            self.rows['evt_no'] = evt 
             self.rows['rwf']    = rwf 
             self.rows.append()
 

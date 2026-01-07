@@ -135,7 +135,6 @@ class Controller:
             try:
                 # you must pass wf_size and ADCs through. 
                 wf_size, ADCs, ch = data
-                self.event_counter += 1
 
                 # update visuals
                 self.main_window.screen.update_ch(np.arange(0, wf_size, dtype=wf_size.dtype), ADCs)
@@ -144,12 +143,15 @@ class Controller:
                 self.tracker.track(ADCs.nbytes)
 
                 # push data to writer buffer 
-                self.write_buffer.put(data)
+                write_data = wf_size, ADCs, self.event_counter
+                self.write_buffer.put(write_data)
 
                 '''
                 # multi channel writing
                 self.write_buffers[self.ch_mapping[ch]].put(data)
                 '''
+                
+                self.event_counter += 1
 
             except Exception as e:
                 logging.exception(f"Error updating display: {e}")
