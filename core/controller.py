@@ -76,22 +76,22 @@ class Controller:
 
         # Writer (1 channel for now)
         self.writer = Writer(ch=0,
-                             flush_size=20,
+                             flush_size=20,     # this should be in config file
                              write_buffer=self.writer_buffer,
                              stop_event=self.writer_stop_event
         )
 
         '''
         # Multi channel 
-        self.num_ch = 4          # this should be in config file
-        self.flush_size = 20     # this should be in config file
+        self.ch_mapping = self.get_ch_mapping()
+        self.num_ch = len(self.ch_mapping)
         self.writer_buffers = [Queue(maxsize=1024) for _ in range(self.num_ch)]
-        self.writers = [Writer(ch=i,
-                               flush_size=self.flush_size,
+        self.writers = [Writer(ch=curr_ch,
+                               flush_size=20,
                                write_buffer=self.writer_buffers[i],
                                stop_event=self.writer_stop_event
                         )
-                        for i in range(self.num_ch)]
+                        for curr_ch, i in self.ch_mapping.items()]
         '''
 
         # gui second
@@ -104,6 +104,22 @@ class Controller:
 
         self.connect_digitiser()
 
+    def get_ch_mapping(self):
+        '''
+        Extract what channels are being used map them: ch -> index
+        '''
+        rec_dict = read_config_file(rec_config)
+
+        mapping = {}
+        i = 0
+        for entry in rec_dict:
+            if "ch" in entry:
+                if entry["enabled"] == True:
+                    ch = int(entry[2])
+                    mapping[ch] = i
+                    i += 1
+
+        return mapping
 
     def data_handling(self):
         '''
@@ -118,7 +134,7 @@ class Controller:
 
             try:
                 # you must pass wf_size and ADCs through. 
-                wf_size, ADCs = data
+                wf_size, ADCs, ch = data
                 self.event_counter += 1
 
                 # update visuals
@@ -132,8 +148,7 @@ class Controller:
 
                 '''
                 # multi channel writing
-                wf_size, ADCs, ch = data
-                self.write_buffers[ch].put(data)
+                self.write_buffers[self.ch_mapping[ch]].put(data)
                 '''
 
             except Exception as e:
