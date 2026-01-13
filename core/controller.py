@@ -35,8 +35,8 @@ from threading import Thread, Event, Lock
 from queue import Queue, Empty
 
 class Controller:
-    def __init__(self, 
-                 dig_config: Optional[str] = None, 
+    def __init__(self,
+                 dig_config: Optional[str] = None,
                  rec_config: Optional[str] = None):
         '''
         Initialise controller for GUI and digitiser
@@ -79,7 +79,7 @@ class Controller:
         self.worker.start()
         logging.info("Acquisition worker thread started.")
 
-        # Multi channel writes to h5 
+        # Multi channel writes to h5
         self.ch_mapping = self.get_ch_mapping()
         self.num_ch = len(self.ch_mapping)
         self.h5_flush_size = self.rec_dict['h5_flush_size']
@@ -108,6 +108,10 @@ class Controller:
     def get_ch_mapping(self):
         '''
         Extract what channels are being used map them: ch -> index
+
+        So shape will be:
+        mapping = {0 : 0, 3 : 1, 5 : 2}
+        for the case where ch0, 3, and 5 are enabled
         '''
         mapping = {}
         i = 0
@@ -132,16 +136,16 @@ class Controller:
                 break
 
             try:
-                # you must pass wf_size and ADCs through. 
+                # you must pass wf_size and ADCs through.
                 wf_size, ADCs, ch = data
 
                 # update visuals
-                self.main_window.screen.update_ch(np.arange(0, wf_size, dtype=wf_size.dtype), ADCs)
-                
+                self.main_window.screen.update_ch(np.arange(0, wf_size, dtype=wf_size.dtype), ADCs, ch)
+
                 # ping the tracker (make this optional)
                 self.tracker.track(ADCs.nbytes)
 
-                # push data to writer buffer 
+                # push data to writer buffer
                 if self.recording:
                     write_data = wf_size, ADCs, self.event_counter
 
@@ -149,7 +153,7 @@ class Controller:
                     ch = int(ch)
                     i = int(self.ch_mapping[ch])
                     self.writer_buffers[i].put(write_data)
-                
+
                 self.event_counter += 1
 
             except Exception as e:
@@ -166,7 +170,7 @@ class Controller:
     def run_app(self):
         self.main_window.show()
         return self.app.exec()
-    
+
     def connect_digitiser(self):
         '''
         Connect to the digitiser using the provided configuration file.
@@ -193,7 +197,7 @@ class Controller:
         '''
         logging.info("Starting acquisition.")
         self.cmd_buffer.put(Command(CommandType.START))
-        
+
     def stop_acquisition(self):
         '''
         Stop digitiser acquisition.
@@ -212,7 +216,7 @@ class Controller:
                 logging.info(f"Writer (channel {w.ch}) thread started.")
 
         logging.info("Starting recording.")
-        
+
     def stop_recording(self):
         '''
         Stop recording data.
@@ -221,7 +225,7 @@ class Controller:
         self.writer_stop_event.set()
 
         for w in self.writers:
-            w.join(timeout=2) 
+            w.join(timeout=2)
 
         logging.info("Stopping recording.")
 
@@ -239,7 +243,7 @@ class Controller:
         # Writer threads
         self.writer_stop_event.set()
         for w in self.writers:
-            w.join(timeout=2) 
+            w.join(timeout=2)
 
         clean_shutdown = True
 
