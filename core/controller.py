@@ -118,7 +118,6 @@ class Controller:
                     mapping[ch] = i
                     i += 1
 
-        #print(f'mapping: {mapping}')
         return mapping
 
     def data_handling(self):
@@ -135,7 +134,6 @@ class Controller:
             try:
                 # you must pass wf_size and ADCs through. 
                 wf_size, ADCs, ch = data
-                #print(f'ch: {ch}')
 
                 # update visuals
                 self.main_window.screen.update_ch(np.arange(0, wf_size, dtype=wf_size.dtype), ADCs)
@@ -146,7 +144,6 @@ class Controller:
                 # push data to writer buffer 
                 if self.recording:
                     write_data = wf_size, ADCs, self.event_counter
-                    #self.writer_buffer.put(write_data)
 
                     # multi channel writing
                     ch = int(ch)

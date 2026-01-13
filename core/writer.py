@@ -62,24 +62,12 @@ class Writer(Thread):
         Write local buffer to h5 file and then clear local buffer.
 
         assumption is that the local buffer contains tuples of:
-        (waveform_size, ADCs)
+        (waveform_size, ADCs, event_no)
         where ADCs is the actual raw waveform array
-
-        we need the waveform_size once
-
-        ***This needs to be implemented.***
         '''
 
         for wf_size, rwf, evt in self.local_buffer:
-            '''
-            print(f'{evt}')
-            print(rwf)
-            print('='*20)
-            print('='*20)
-            print('='*20)
-            '''
-
-            # if we know the size of the waveforms already, don't create the class again.
+        # if we know the size of the waveforms already, don't create the class again.
             if self.wf_size is None:
                 self.wf_size = wf_size 
                 self.rwf_class = df_class.return_rwf_class(self.dig_config['dig_gen'], self.wf_size)
@@ -128,8 +116,6 @@ class Writer(Thread):
     def cleanup(self):
         '''
         Handles cleanup of writer thread and h5 file.
-
-        ***This needs to be implemented.***
         '''
         # close the h5 file
         self.h5file.close()
