@@ -232,6 +232,9 @@ class Digitiser():
             logging.exception("Stopping acsquisition failed:")
 
     def acquire(self):
+        '''
+        Must return data with format (wf_size, ADCs, ch)
+        '''
         match self.trigger_mode:
             case 'SWTRIG':
                 return self.SW_record()
@@ -252,7 +255,10 @@ class Digitiser():
         try:
             self.endpoint.has_data(check_timeout)
             self.endpoint.read_data(read_timeout, self.data) # timeout first number in ms
-            return (self.data[7].value, self.data[3].value)
+            wf_size = self.data[7].value
+            ADCs = self.data[3].value
+            ch = self.data[0].value
+            return (wf_size, ADCs, ch)
         except error.Error as ex:
             #logging.exception("Error in readout:")
             if ex.code is error.ErrorCode.TIMEOUT:
@@ -279,7 +285,10 @@ class Digitiser():
         try:
             self.endpoint.has_data(check_timeout)
             self.endpoint.read_data(read_timeout, self.data)
-            return (self.data[7].value, self.data[3].value)
+            wf_size = self.data[7].value
+            ADCs = self.data[3].value
+            ch = self.data[0].value
+            return (wf_size, ADCs, ch)
         except error.Error as ex:
             #logging.exception("Error in readout:")
             if ex.code is error.ErrorCode.TIMEOUT:

@@ -1,3 +1,7 @@
+# CAEN stuff
+CAENBoard_GENERICLog.txt  
+CAENParametersLog.txt
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
