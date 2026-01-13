@@ -7,14 +7,6 @@ import core.df_classes as df_class
 import core.io as io
 
 
-'''
-Currently if stop event is set then run() exits and the data left in the shared buffer is discarded.
-So, if we want to safely stop the entire program without discarding any data already in the shared buffer,
-there will have to be some logic inside AcquisitionWorker that lets the writer threads flush and write all
-the remaining data inside the shared buffers before terminating the threads.
-'''
-
-
 class Writer(Thread):
     '''
     Writes channel data to h5 file.
