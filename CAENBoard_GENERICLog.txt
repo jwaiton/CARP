@@ -1,2 +1,2 @@
-[       0.011][EE][CAENBoard_GENERIC.c::2526]: Open digitizer failed due to a comm error: -1
-[       0.011][EE][CAENDPPLayer.c::118]: From c_newDigitizer: Error Calling CAENDigitizer API
+[       0.009][EE][CAENBoard_GENERIC.c::2526]: Open digitizer failed due to a comm error: -1
+[       0.009][EE][CAENDPPLayer.c::118]: From c_newDigitizer: Error Calling CAENDigitizer API
