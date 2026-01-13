@@ -1,6 +1,7 @@
 import numpy as np
 import logging
 import time
+from datetime import datetime
 #from caen_felib import lib, device, error
 from typing import Optional
 
@@ -49,6 +50,8 @@ class Controller:
         # Digitiser configuration
         self.dig_config = dig_config
         self.rec_config = rec_config
+        self.dig_dict = read_config_file(self.dig_config)
+        self.rec_dict = read_config_file(self.rec_config)
 
         # initialise a universal event counter for sanity purposes
         self.event_counter = 0
@@ -57,14 +60,16 @@ class Controller:
         self.cmd_buffer = Queue(maxsize=10)
         self.display_buffer = Queue(maxsize=1024)
         self.worker_stop_event = Event()
-        self.writer_buffer = Queue(maxsize=1024)
         self.writer_stop_event = Event()
+        self.recording = False
 
         # Acquisition worker
+        self.sw_timeout = self.rec_dict['software_timeout']
         self.worker = AcquisitionWorker(
             cmd_buffer=self.cmd_buffer,
             display_buffer=self.display_buffer,
             stop_event=self.worker_stop_event,
+            sw_timeout = self.sw_timeout
         )
 
         # Set the callback to the controller's data_handling method
@@ -74,25 +79,21 @@ class Controller:
         self.worker.start()
         logging.info("Acquisition worker thread started.")
 
-        # Writer (1 channel for now)
-        self.writer = Writer(ch=0,
-                             flush_size=20,     # this should be in config file
-                             write_buffer=self.writer_buffer,
-                             stop_event=self.writer_stop_event
-        )
-
-        '''
-        # Multi channel 
+        # Multi channel writes to h5 
         self.ch_mapping = self.get_ch_mapping()
         self.num_ch = len(self.ch_mapping)
+        self.h5_flush_size = self.rec_dict['h5_flush_size']
         self.writer_buffers = [Queue(maxsize=1024) for _ in range(self.num_ch)]
-        self.writers = [Writer(ch=curr_ch,
-                               flush_size=20,
-                               write_buffer=self.writer_buffers[i],
-                               stop_event=self.writer_stop_event
+        self.writers = [Writer(
+                            ch=curr_ch,
+                            flush_size=self.h5_flush_size,
+                            write_buffer=self.writer_buffers[i],
+                            stop_event=self.writer_stop_event,
+                            rec_config = read_config_file(self.rec_config),
+                            dig_config = read_config_file(self.dig_config),
+                            TIMESTAMP = datetime.now().strftime("%H:%M:%S")
                         )
                         for curr_ch, i in self.ch_mapping.items()]
-        '''
 
         # gui second
         self.app = QApplication([])
@@ -108,17 +109,16 @@ class Controller:
         '''
         Extract what channels are being used map them: ch -> index
         '''
-        rec_dict = read_config_file(rec_config)
-
         mapping = {}
         i = 0
-        for entry in rec_dict:
-            if "ch" in entry:
-                if entry["enabled"] == True:
-                    ch = int(entry[2])
+        for entry in self.rec_dict:
+            if 'ch' in entry:
+                if self.rec_dict[entry]['enabled']:
+                    ch = int(entry[2:])
                     mapping[ch] = i
                     i += 1
 
+        #print(f'mapping: {mapping}')
         return mapping
 
     def data_handling(self):
@@ -135,6 +135,7 @@ class Controller:
             try:
                 # you must pass wf_size and ADCs through. 
                 wf_size, ADCs, ch = data
+                #print(f'ch: {ch}')
 
                 # update visuals
                 self.main_window.screen.update_ch(np.arange(0, wf_size, dtype=wf_size.dtype), ADCs)
@@ -143,13 +144,14 @@ class Controller:
                 self.tracker.track(ADCs.nbytes)
 
                 # push data to writer buffer 
-                write_data = wf_size, ADCs, self.event_counter
-                self.write_buffer.put(write_data)
+                if self.recording:
+                    write_data = wf_size, ADCs, self.event_counter
+                    #self.writer_buffer.put(write_data)
 
-                '''
-                # multi channel writing
-                self.write_buffers[self.ch_mapping[ch]].put(data)
-                '''
+                    # multi channel writing
+                    ch = int(ch)
+                    i = int(self.ch_mapping[ch])
+                    self.writer_buffers[i].put(write_data)
                 
                 self.event_counter += 1
 
@@ -206,16 +208,11 @@ class Controller:
         '''
         Start recording data.
         '''
-        if not self.writer.is_alive():
-            self.writer.start()
-        logging.info("Writer (1 channel) thread started.")
-
-        '''
+        self.recording = True
         for w in self.writers:
-            if not self.w.is_alive():
+            if not w.is_alive():
                 w.start()
                 logging.info(f"Writer (channel {w.ch}) thread started.")
-        '''
 
         logging.info("Starting recording.")
         
@@ -223,16 +220,13 @@ class Controller:
         '''
         Stop recording data.
         '''
+        self.recording = False
         self.writer_stop_event.set()
-        self.writer.join(timeout=2)
-        '''
+
         for w in self.writers:
             w.join(timeout=2) 
-        '''
-
 
         logging.info("Stopping recording.")
-        self.cmd_buffer.put(Command(CommandType.STOP))
 
     def shutdown(self):
         '''
@@ -240,18 +234,15 @@ class Controller:
         '''
         logging.info("Shutting down controller.")
 
-        # Acquisition Worker
+        # Acquisition Worker thread
         self.cmd_buffer.put(Command(CommandType.EXIT))
         self.worker_stop_event.set()
         self.worker.join(timeout=2)
 
+        # Writer threads
         self.writer_stop_event.set()
-        self.writer.join(timeout=2)
-
-        '''
         for w in self.writers:
             w.join(timeout=2) 
-        '''
 
         clean_shutdown = True
 
@@ -259,18 +250,11 @@ class Controller:
             clean_shutdown = False
             logging.warning("AcquisitionWorker did not stop cleanly.")
 
-        if self.writer.is_alive():
-            clean_shutdown = False
-            logging.warning("Writer did not stop cleanly.")
-
-        '''
         for w in self.writers:
             if w.is_alive():
                 clean_shutdown = False
                 logging.warning(f"Writer (channel {w.ch}) did not stop cleanly.")
 
-        '''
-        
         if clean_shutdown:
             logging.info("Controller shutdown complete.")
 

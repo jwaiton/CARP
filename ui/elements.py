@@ -147,7 +147,7 @@ class Acquisition(QGroupBox):
         else:
             self.start_stop.setStyleSheet("background-color: green; color: black")
             self.start_stop.clicked.connect(self.toggle_acquisition)
-            self.record.setStyleSheet("background-color: red; color: black")
+            self.record.setStyleSheet("background-color: green; color: black")
             self.record.clicked.connect(self.toggle_recording)
        
 

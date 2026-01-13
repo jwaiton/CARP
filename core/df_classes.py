@@ -20,12 +20,12 @@ def return_rwf_class(WD_version : str, shape : int) -> Type[tb.IsDescription]:
             evt_no    = tb.UInt32Col()
             channel   = tb.UInt32Col()
             timestamp = tb.UInt64Col()
-            rwf       = tb.UInt16Col(shape=(samples,))
+            rwf       = tb.UInt16Col(shape=(shape,))
     elif WD_version == 2:
         class rwf_df(tb.IsDescription):
             evt_no    = tb.UInt32Col()
             channel   = tb.UInt32Col()
             timestamp = tb.UInt64Col()
-            rwf       = tb.Float32Col(shape = (samples,))
+            rwf       = tb.Float32Col(shape = (shape,))
 
     return rwf_df

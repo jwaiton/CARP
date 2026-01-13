@@ -63,7 +63,7 @@ def create_config_table(h5file : tb.File, dictionary : dict, name : str, descrip
             if type(values) is dict:
                 # single nest only! any more and you've made the config too complicated
                 for key_2, value_2 in values.items():
-                    print(key_2)
+                    #print(key_2)
                     config_details['key'] = f'{key}/{key_2}'
                     config_details['value'] = value_2
                     config_details.append()

@@ -1,6 +1,7 @@
 from queue import Queue, Empty
 from threading import Thread, Event, Lock
 import logging
+import tables as tb
 
 import core.df_classes as df_class 
 import core.io as io
@@ -36,17 +37,19 @@ class Writer(Thread):
         self.flush_size = flush_size
         self.write_buffer = write_buffer
         self.stop_event = stop_event
+        self.rec_config = rec_config
+        self.dig_config = dig_config
         self.filename = f"some_name_ch_{self.ch}"
         self.local_buffer = []
         self.wf_size   = None
 
-        if file_name in self.rec_config:
+        if 'file_name' in self.rec_config:
             file_path = self.rec_config['file_name']
             file_path = f'{file_path}_{self.ch}_{TIMESTAMP}.h5'
         else:
             file_path = f'{self.ch}_{TIMESTAMP}.h5'
         # initialise the h5, one per channel, each handled on a separate thread
-        self.h5file = tb.open_file(f'{file_path}')
+        self.h5file = tb.open_file(f'{file_path}', mode='a')
         # configs written 
         io.create_config_table(self.h5file, self.rec_config, 'rec_conf', 'recording config')
         io.create_config_table(self.h5file, self.dig_config, 'dig_conf', 'digitiser config')
@@ -68,6 +71,13 @@ class Writer(Thread):
         '''
 
         for wf_size, rwf, evt in self.local_buffer:
+            '''
+            print(f'{evt}')
+            print(rwf)
+            print('='*20)
+            print('='*20)
+            print('='*20)
+            '''
 
             # if we know the size of the waveforms already, don't create the class again.
             if self.wf_size is None:
@@ -79,6 +89,8 @@ class Writer(Thread):
             self.rows['evt_no'] = evt 
             self.rows['rwf']    = rwf 
             self.rows.append()
+
+        self.local_buffer.clear()
 
         # flush as fast as the buffer provides
         self.rwf_table.flush()

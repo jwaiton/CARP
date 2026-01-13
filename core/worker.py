@@ -14,7 +14,7 @@ class AcquisitionWorker(Thread):
     All commands and data flow through thread-safe mechanisms (queue, locks, events).
     '''
 
-    def __init__(self, cmd_buffer: Queue, display_buffer: Queue, stop_event: Event):
+    def __init__(self, cmd_buffer: Queue, display_buffer: Queue, stop_event: Event, sw_timeout: float):
         super().__init__(daemon=True)
         self.digitiser = None
         self.stop_event = stop_event
@@ -24,6 +24,7 @@ class AcquisitionWorker(Thread):
         self.data_ready_callback = None  # set by Controller
         self.dig_config = None
         self.rec_config = None
+        self.sw_timeout = sw_timeout     # set in config file (s)
 
     def enqueue_cmd(self, cmd_type: CommandType, *args):
         '''
@@ -142,7 +143,7 @@ class AcquisitionWorker(Thread):
                         logging.exception(f"Acquisition error: {e}")
 
                 # to avoid busy digitiser - add software timeout as member variable
-                time.sleep(1)
+                time.sleep(self.sw_timeout)
 
         except Exception as e:
             logging.exception(f"Fatal error in AcquisitionWorker: {e}")
