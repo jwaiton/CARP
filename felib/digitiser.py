@@ -42,12 +42,12 @@ class Digitiser():
         else:
             logging.error("Invalid digitiser generation specified in the configuration.")
             #raise ValueError("Invalid digitiser generation specified in the configuration.")
-        
+
         self.URI = self.generate_uri()
         self.isAcquiring = False
         self.isConnected = False
         self.isRecording = False
-        
+
         self.data_format = []
         self.endpoint = None
 
@@ -74,15 +74,15 @@ class Digitiser():
         else:
             logging.error("Invalid digitiser generation specified in the configuration.")
             #raise ValueError("Invalid digitiser generation specified in the configuration.")
-        
+
 
     def connect(self):
         '''
         Connect to the digitiser using the generated URI.
         '''
-        
+
         logging.info(f'Attemping connection to digitiser {self.dig_name} at {self.URI}.')
-        
+
         # fake connection for debugging
         if self.dig_name == 'debug':
             self.dig = None
@@ -114,7 +114,7 @@ class Digitiser():
             return None
 
 
-    def configure(self, 
+    def configure(self,
                   dig_dict : dict,
                   rec_dict : dict):
                   #record_length: Optional[int] = 0,
@@ -122,7 +122,7 @@ class Digitiser():
                   #trigger_level: Optional[str] = 'SWTRG'):
         '''
         Configure the digitiser with the provided settings and calibrate it.
-        '''        
+        '''
 
         self.record_length = rec_dict.get('record_length')
         self.pre_trigger   = rec_dict.get('pre_trigger')
@@ -143,10 +143,12 @@ class Digitiser():
 
                 # extract channel config of interest
                 ch_dict = rec_dict.get(f'ch{i}')
-                
+
+                # disable channel if not explicitly called
                 if ch_dict is None:
+                    ch.par.CH_ENABLED.value = 'FALSE'
                     continue
-                
+
                 ch.par.CH_ENABLED.value      = 'TRUE' if ch_dict['enabled'] else 'FALSE'
                 ch.par.CH_PRETRG.value = f'{self.pre_trigger}'
 
@@ -157,7 +159,7 @@ class Digitiser():
                 else:
                     # doesn't reset by default! so forcing this here
                     ch.par.CH_SELF_TRG_ENABLE.value = 'FALSE'
-                
+
                 if ch_dict['polarity'] == 'positive':
                     ch.par.CH_POLARITY.value        = 'POLARITY_POSITIVE'
                 elif ch_dict['polarity'] == 'negative':
@@ -166,7 +168,7 @@ class Digitiser():
                 else:
                     ch.par.CH_SELF_TRG_ENABLE.value = 'FALSE'
                 # technically customisable
-                
+
 
 
             # calculate the true reclen value for outputting
@@ -179,12 +181,12 @@ class Digitiser():
                 self.data_format = formats.DPP(int(self.dig.par.NUMCH.value), int(self.reclen))
                 # setting up probe types (READ UP ON THIS)
                 self.dig.vtrace[0].par.VTRACE_PROBE.value = 'VPROBE_INPUT'
-            
+
             endpoint_path = (self.dig.par.FWTYPE.value).replace('-', '')
             self.endpoint = self.dig.endpoint[endpoint_path]
             self.data = self.endpoint.set_read_data_format(self.data_format)
 
-        
+
             logging.info(f"Digitiser configured:\nrecord length {self.record_length}, pre-trigger {self.pre_trigger}, trigger mode {self.trigger_mode}.")
         except Exception as e:
             logging.exception(f"Failed to configure recording parameters.\n{e}")
@@ -207,18 +209,18 @@ class Digitiser():
             self.dig.cmd.ARMACQUISITION()
         except Exception as e:
             logging.exception(f"Starting acquisition failed: {e}")
-        
+
         # start recording function
         #self.trigger_and_record()
         #try:
             #self.dig.cmd.START()
-            #self.collect = True    
+            #self.collect = True
             #print("Digitiser acquisition started.")
         #except Exception as e:
         #    raise RuntimeError(f"Failed to start digitiser acquisition.\n{e}")
              #self.collect = True
-        
-    
+
+
     def stop_acquisition(self):
         '''
         Stop the digitiser acquisition.
@@ -242,7 +244,7 @@ class Digitiser():
                 return self.SELFTRIG_record()
             case _:
                 logging.info(f'Trigger mode {self.trigger_mode} not currently implemented.')
-                self.stop_acquisition()    
+                self.stop_acquisition()
 
 
     def SW_record(self):
@@ -266,16 +268,16 @@ class Digitiser():
             if ex.code is error.ErrorCode.STOP:
                 logging.exception("STOP")
                 raise ex
-        
+
         # ensure the input and trigger are acceptable (I think?)
         #assert self.data[3].value == 1 # VPROBE INPUT? I need to understand this
         #assert self.data[6].value == 1 # VPROBE TRIGGER?
-        
+
         #waveform_size = self.data[7].value
         #valid_sample_range = np.arange(0, waveform_size, dtype = waveform_size.dtype)
 
-        
-    
+
+
     def SELFTRIG_record(self):
         '''
         Trigger on channels
