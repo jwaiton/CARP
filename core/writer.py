@@ -3,7 +3,7 @@ from threading import Thread, Event, Lock
 import logging
 import tables as tb
 
-import core.df_classes as df_class 
+import core.df_classes as df_class
 import core.io as io
 
 
@@ -11,11 +11,11 @@ class Writer(Thread):
     '''
     Writes channel data to h5 file.
     '''
-    def __init__(self, 
-                 ch           : int, 
-                 flush_size   : int, 
-                 write_buffer : Queue, 
-                 stop_event   : Event, 
+    def __init__(self,
+                 ch           : int,
+                 flush_size   : int,
+                 write_buffer : Queue,
+                 stop_event   : Event,
                  rec_config   : dict,
                  dig_config   : dict,
                  TIMESTAMP    : str,):
@@ -41,8 +41,12 @@ class Writer(Thread):
         else:
             file_path = f'{self.ch}_{TIMESTAMP}.h5'
         # initialise the h5, one per channel, each handled on a separate thread
-        self.h5file = tb.open_file(f'{file_path}', mode='a')
-        # configs written 
+        try:
+            self.h5file = tb.open_file(f'{file_path}', mode='a')
+        except FileNotFoundError as e:
+            logging.error(f'FileNotFoundError: Cannot create output file at path {file_path}')
+            exit()
+        # configs written
         io.create_config_table(self.h5file, self.rec_config, 'rec_conf', 'recording config')
         io.create_config_table(self.h5file, self.dig_config, 'dig_conf', 'digitiser config')
         # raw waveform group constructed
@@ -61,13 +65,13 @@ class Writer(Thread):
         for wf_size, rwf, evt in self.local_buffer:
         # if we know the size of the waveforms already, don't create the class again.
             if self.wf_size is None:
-                self.wf_size = wf_size 
+                self.wf_size = wf_size
                 self.rwf_class = df_class.return_rwf_class(self.dig_config['dig_gen'], self.wf_size)
                 self.rwf_table = self.h5file.create_table(self.rwf_group, 'rwf', self.rwf_class, "raw waveforms")
                 self.rows      =  self.rwf_table.row
 
-            self.rows['evt_no'] = evt 
-            self.rows['rwf']    = rwf 
+            self.rows['evt_no'] = evt
+            self.rows['rwf']    = rwf
             self.rows.append()
 
         self.local_buffer.clear()
