@@ -53,8 +53,8 @@ class ControlPanel(QFrame):
 
 
 class OscilloScopeScreen(pg.PlotWidget):
-    def __init__(self, parent = None, plotItem = None, **kwargs):
-        super().__init__(parent=parent, background='w', plotItem=plotItem, **kwargs)
+    def __init__(self, controller, parent = None, plotItem = None, **kwargs):
+        super().__init__(parent=parent, controller=controller, background='w', plotItem=plotItem, **kwargs)
 
         styles = {'color': 'k', 'font-size': '12px'}
         self.setLabel('left', 'Voltage (ADCs)', **styles)
@@ -64,18 +64,19 @@ class OscilloScopeScreen(pg.PlotWidget):
         self.setXRange(0, 1, padding = 0.02)
         self.setYRange(0, 5, padding = 0.02)
 
+        self.legend = self.addLegend()
 
         self.pen_ch   = {}
         self.channels = {}
         # create pens for each channel, and plot the defaults
-        for ch in self.ch_mapping.keys():
+        for ch in controller.ch_mapping.keys():
             self.pen_ch[ch] = pg.mkPen(pg.intColor(ch), width = 1)
             self.plot_ch([0,1], [0,0], ch)
 
-        self.legend = self.addLegend()
+
 
     def plot_ch(self, x, y, ch = 1):
-        self.channels[ch] = self.plot(x, y, pen=self.pen_ch[ch], name = str(ch))
+        self.channels[ch] = self.plot(x, y, pen=self.pen_ch[ch], name = f'ch {ch}')
 
     def update_ch(self, x, y, ch = 1):
         self.channels[ch].setData(x, y)
@@ -93,7 +94,7 @@ class MainWindow(QMainWindow):
     def setupUI(self):
         self.setWindowTitle("CAEN Acqusition and Readout Program (CARP)")
 
-        self.screen        = OscilloScopeScreen()
+        self.screen        = OscilloScopeScreen(self.controller)
         self.control_panel = ControlPanel(self.controller)
 
         self.content_layout = QHBoxLayout()
