@@ -8,6 +8,7 @@ import logging
 from typing import Optional
 import time
 
+from core.functions import get_ch_mapping
 from felib.dig1_utils import generate_digitiser_uri
 
 import felib.formats as formats
@@ -127,6 +128,9 @@ class Digitiser():
         self.record_length = rec_dict.get('record_length')
         self.pre_trigger   = rec_dict.get('pre_trigger')
         self.trigger_mode  = rec_dict.get('trigger_mode')
+
+        # extract channel mapping
+        self.ch_mapping    = get_ch_mapping(rec_dict)
 
         try:
 

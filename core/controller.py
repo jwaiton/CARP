@@ -28,6 +28,7 @@ from core.commands import CommandType, Command
 from core.worker import AcquisitionWorker
 from core.writer import Writer
 from core.tracker import Tracker
+from core.functions import get_ch_mapping
 from felib.digitiser import Digitiser
 from ui import oscilloscope
 
@@ -80,7 +81,7 @@ class Controller:
         logging.info("Acquisition worker thread started.")
 
         # Multi channel writes to h5
-        self.ch_mapping = self.get_ch_mapping()
+        self.ch_mapping = get_ch_mapping(self.rec_dict)
         self.num_ch = len(self.ch_mapping)
         self.h5_flush_size = self.rec_dict['h5_flush_size']
         self.writer_buffers = [Queue(maxsize=1024) for _ in range(self.num_ch)]
@@ -105,24 +106,6 @@ class Controller:
 
         self.connect_digitiser()
 
-    def get_ch_mapping(self):
-        '''
-        Extract what channels are being used map them: ch -> index
-
-        So shape will be:
-        mapping = {0 : 0, 3 : 1, 5 : 2}
-        for the case where ch0, 3, and 5 are enabled
-        '''
-        mapping = {}
-        i = 0
-        for entry in self.rec_dict:
-            if 'ch' in entry:
-                if self.rec_dict[entry]['enabled']:
-                    ch = int(entry[2:])
-                    mapping[ch] = i
-                    i += 1
-
-        return mapping
 
     def data_handling(self):
         '''
