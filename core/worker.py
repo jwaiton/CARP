@@ -74,7 +74,7 @@ class AcquisitionWorker(Thread):
             logging.info("Digitiser acquisition started successfully.")
         except Exception as e:
             logging.exception(f"Start acquisition failed: {e}")
-    
+
     def connect_digitiser(self, dig_config, rec_config):
         '''
         Connect to digitiser with given configs.
@@ -123,7 +123,8 @@ class AcquisitionWorker(Thread):
                         data = self.digitiser.acquire()
                         if data is None:
                             continue
-
+                        # extract each channel separately and push to buffers
+                        for channel_data in data:
                         # Non-blocking put to visual buffer
                         if self.display_buffer.full():
                             try:
@@ -133,7 +134,7 @@ class AcquisitionWorker(Thread):
 
                         # Push to display buffer (etc.)
                         if not self.display_buffer.full():
-                            self.display_buffer.put_nowait(data)
+                            self.display_buffer.put_nowait(channel_data)
 
                         # Notify controller/UI
                         if self.data_ready_callback:
@@ -154,7 +155,7 @@ class AcquisitionWorker(Thread):
 
     def cleanup(self):
         '''
-        Cleans up digitiser by calling stop_acquisition and its destructor. 
+        Cleans up digitiser by calling stop_acquisition and its destructor.
         '''
         if self.digitiser:
             if self.digitiser.isAcquiring:

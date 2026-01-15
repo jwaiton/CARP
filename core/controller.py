@@ -120,7 +120,7 @@ class Controller:
 
             try:
                 # you must pass wf_size and ADCs through.
-                wf_size, ADCs, ch = data
+                wf_size, ADCs, ch, timestamp = data
 
                 # update visuals
                 self.main_window.screen.update_ch(np.arange(0, wf_size, dtype=wf_size.dtype), ADCs, ch)
@@ -130,7 +130,7 @@ class Controller:
 
                 # push data to writer buffer
                 if self.recording:
-                    write_data = wf_size, ADCs, self.event_counter
+                    write_data = wf_size, ADCs, self.event_counter, timestamp
 
                     # multi channel writing
                     ch = int(ch)

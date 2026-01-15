@@ -62,7 +62,7 @@ class Writer(Thread):
         where ADCs is the actual raw waveform array
         '''
 
-        for wf_size, rwf, evt in self.local_buffer:
+        for wf_size, rwf, evt, ts in self.local_buffer:
         # if we know the size of the waveforms already, don't create the class again.
             if self.wf_size is None:
                 self.wf_size = wf_size
@@ -70,8 +70,9 @@ class Writer(Thread):
                 self.rwf_table = self.h5file.create_table(self.rwf_group, 'rwf', self.rwf_class, "raw waveforms")
                 self.rows      =  self.rwf_table.row
 
-            self.rows['evt_no'] = evt
-            self.rows['rwf']    = rwf
+            self.rows['evt_no']    = evt
+            self.rows['rwf']       = rwf
+            self.rows['timestamp'] = ts
             self.rows.append()
 
         self.local_buffer.clear()

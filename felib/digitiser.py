@@ -194,11 +194,28 @@ class Digitiser():
                 case 'SCOPE':
                     self.data_format = formats.SCOPE(int(self.dig.par.NUMCH.value), int(self.reclen))
                 case _:
-                    logging.exception(f"Firmware type {self.dig.par.FWTYPE.value} not recognised.\nCurrent FWs available are DPP-DSD and SCOPE")
+                    logging.exception(f"Firmware type {self.dig.par.FWTYPE.value} not recognised.\nCurrent FWs available are DPP-PSD and SCOPE")
 
             endpoint_path = (self.dig.par.FWTYPE.value).replace('-', '')
             self.endpoint = self.dig.endpoint[endpoint_path]
             self.data = self.endpoint.set_read_data_format(self.data_format)
+
+
+            # generalised extraction of data parameters
+            match self.dig.par.FWTYPE.value:
+                case 'DPP-PSD':
+                    self.channel       = self.data[0].value
+                    self.timestamp     = self.data[1].value
+                    self.waveform_size = self.data[7].value
+                    self.waveform      = self.data[3].value
+                case 'SCOPE':
+                    # no channel parameter as channels are treated differently
+                    # all channels are within the dataset, check the data format to understand the shape
+                    self.timestamp     = self.data[1].value
+                    self.waveform_size = self.data[3].value
+                    self.waveform      = self.data[2].value
+                case _:
+                    logging.exception(f"Firmware type {self.dig.par.FWTYPE.value} not recognised.\nCurrent FWs available are DPP-PSD and SCOPE")
 
 
             logging.info(f"Digitiser configured:\nrecord length {self.record_length}, pre-trigger {self.pre_trigger}, trigger mode {self.trigger_mode}.")
@@ -271,10 +288,19 @@ class Digitiser():
         try:
             self.endpoint.has_data(check_timeout)
             self.endpoint.read_data(read_timeout, self.data) # timeout first number in ms
-            wf_size = self.data[7].value
-            ADCs = self.data[3].value
-            ch = self.data[0].value
-            return (wf_size, ADCs, ch)
+
+            # SCOPE sends everything, even the disabled channels, so parse the relevant channels here
+            if self.dig.par.FWTYPE.value == 'SCOPE':
+                output = []
+                # using the mapping extract the relevant channels
+                for ch in ch_mapping.keys():
+                    output.append((self.waveform_size[ch], self.waveform[ch], ch, self.timestamp))
+            # DPP-PSD triggers per channel, so needs to be treated as such
+            elif self.dig.par.FWTYPE.value == 'DPP-PSD'
+                output = [(self.waveform_size, self.waveform, self.channel, self.timestamp)]
+
+            return output
+
         except error.Error as ex:
             #logging.exception("Error in readout:")
             if ex.code is error.ErrorCode.TIMEOUT:
@@ -301,10 +327,19 @@ class Digitiser():
         try:
             self.endpoint.has_data(check_timeout)
             self.endpoint.read_data(read_timeout, self.data)
-            wf_size = self.data[7].value
-            ADCs = self.data[3].value
-            ch = self.data[0].value
-            return (wf_size, ADCs, ch)
+
+            # SCOPE sends everything, even the disabled channels, so parse the relevant channels here
+            if self.dig.par.FWTYPE.value == 'SCOPE':
+                output = []
+                # using the mapping extract the relevant channels
+                for ch in ch_mapping.keys():
+                    output.append((self.waveform_size[ch], self.waveform[ch], ch, self.timestamp))
+            # DPP-PSD triggers per channel, so needs to be treated as such
+            elif self.dig.par.FWTYPE.value == 'DPP-PSD'
+                output = [(self.waveform_size, self.waveform, self.channel, self.timestamp)]
+
+            return output
+
         except error.Error as ex:
             #logging.exception("Error in readout:")
             if ex.code is error.ErrorCode.TIMEOUT:
