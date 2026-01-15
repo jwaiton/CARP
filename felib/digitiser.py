@@ -151,18 +151,18 @@ class Digitiser():
 
                 # normal channel management
                 ch.par.CH_ENABLED.value = 'TRUE' if ch_dict['enabled'] else 'FALSE'
-                if   self.dig.par.FWTYPE.value == 'DPP-DSD' : ch.par.CH_PRETRIG.value = f{'self.pre_trigger'}
+                if   self.dig.par.FWTYPE.value == 'DPP-PSD' : ch.par.CH_PRETRIG.value = f{'self.pre_trigger'}
                 elif self.dig.par.FWTYPE.value == 'SCOPE'   : ch.par.POSTTRG.value    = f'{self.record_length - self.pre_trigger}'
 
                 # ensure self trigger only enabled when you don't have SWTRIG enabled
                 if ch_dict['self_trigger'] and self.trigger_mode != 'SWTRIG':
-                    if self.dig.par.FWTYPE.value    == 'DPP-DSD' : ch.par.CH_SELF_TRG_ENABLE.value = 'TRUE'
+                    if self.dig.par.FWTYPE.value    == 'DPP-PSD' : ch.par.CH_SELF_TRG_ENABLE.value = 'TRUE'
 
                     ch.par.CH_SELF_TRG_ENABLE.value = 'TRUE'
                     ch.par.CH_THRESHOLD.value       = str(ch_dict['threshold'])
                 else:
                     # doesn't reset by default! so forcing this here
-                    if self.dig.par.FWTYPE.value    == 'DPP-DSD' : ch.par.CH_SELF_TRG_ENABLE.value = 'FALSE'
+                    if self.dig.par.FWTYPE.value    == 'DPP-PSD' : ch.par.CH_SELF_TRG_ENABLE.value = 'FALSE'
 
                 if ch_dict['polarity'] == 'positive':
                     ch.par.CH_POLARITY.value        = 'POLARITY_POSITIVE'
