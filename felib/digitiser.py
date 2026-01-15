@@ -179,12 +179,18 @@ class Digitiser():
             reclen_ns = int(self.dig.par.RECLEN.value)
             self.reclen    = int(reclen_ns / int(1e3 / self.dig_info['sample_rate']))
 
-            # if DPP, need to specify that you're looking at waveforms specifically.
-            if self.dig.par.FWTYPE.value == 'DPP-PSD':
-                self.dig.par.WAVEFORMS.value = 'TRUE'
-                self.data_format = formats.DPP(int(self.dig.par.NUMCH.value), int(self.reclen))
-                # setting up probe types (READ UP ON THIS)
-                self.dig.vtrace[0].par.VTRACE_PROBE.value = 'VPROBE_INPUT'
+            # set up data format
+            match self.dig.par.FWTYPE.value:
+                case 'DPP-PSD':
+                    # enforce waveform formatting
+                    self.dig.par.WAVEFORMS.value = 'TRUE'
+                    self.data_format = formats.DPP(  int(self.dig.par.NUMCH.value), int(self.reclen))
+                    # setting up probe types (READ UP ON THIS)
+                    self.dig.vtrace[0].par.VTRACE_PROBE.value = 'VPROBE_INPUT'
+                case 'SCOPE':
+                    self.data_format = formats.SCOPE(int(self.dig.par.NUMCH.value), int(self.reclen))
+                case _:
+                    logging.exception(f"Firmware type {self.dig.par.FWTYPE.value} not recognised.\nCurrent FWs available are DPP-DSD and SCOPE")
 
             endpoint_path = (self.dig.par.FWTYPE.value).replace('-', '')
             self.endpoint = self.dig.endpoint[endpoint_path]
