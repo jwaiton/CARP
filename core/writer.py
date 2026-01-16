@@ -25,6 +25,7 @@ class Writer(Thread):
         '''
 
         super().__init__(daemon=True)
+        self.ch_map     = ch_map
         self.flush_size = flush_size
         self.write_buffer = write_buffer
         self.stop_event = stop_event
@@ -49,7 +50,7 @@ class Writer(Thread):
         io.create_config_table(self.h5file, self.dig_config, 'dig_conf', 'digitiser config')
         # raw waveform group constructed
         self.rwf_group = {}
-        for ch in ch_map.keys():
+        for ch in self.ch_map.keys():
             self.rwf_group[ch] = self.h5file.create_group('/', f'ch_{ch}', 'raw waveform')
         self.rwf_table = {}
 
@@ -67,8 +68,11 @@ class Writer(Thread):
             if self.wf_size is None:
                 self.wf_size = wf_size
                 self.rwf_class = df_class.return_rwf_class(self.dig_config['dig_gen'], self.wf_size)
-                self.rwf_table[ch] = self.h5file.create_table(self.rwf_group[ch], 'rwf', self.rwf_class, "raw waveforms")
-                self.rows      =  self.rwf_table[ch].row
+                # generate all tables once
+                for ch in self.ch_map.keys():
+                    self.rwf_table[ch] = self.h5file.create_table(self.rwf_group[ch], 'rwf', self.rwf_class, "raw waveforms")
+            # open up the rows for the table
+            self.rows      =  self.rwf_table[ch].row
 
             self.rows['evt_no']    = evt
             self.rows['rwf']       = rwf
