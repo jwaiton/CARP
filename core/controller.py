@@ -83,6 +83,7 @@ class Controller:
         # Multi channel writes to h5
         self.ch_mapping = get_ch_mapping(self.rec_dict)
         self.num_ch = len(self.ch_mapping)
+        self.max_ch = max(self.ch_mapping.keys())
         self.h5_flush_size = self.rec_dict['h5_flush_size']
         self.writer_buffer = Queue(maxsize=1024)
         self.writer = Writer(
@@ -132,7 +133,9 @@ class Controller:
                     write_data = wf_size, ch, ADCs, self.event_counter, timestamp
                     self.writer_buffer.put(write_data)
 
-                self.event_counter += 1
+                # stupid catch to ensure event number only increases with channel
+                if ch == self.max_ch:
+                    self.event_counter += 1
 
             except Exception as e:
                 logging.exception(f"Error updating display: {e}")
