@@ -155,8 +155,10 @@ class Digitiser():
 
                 # normal channel management
                 ch.par.CH_ENABLED.value = 'TRUE' if ch_dict['enabled'] else 'FALSE'
-                if   self.dig.par.FWTYPE.value == 'DPP-PSD' : ch.par.CH_PRETRIG.value = f{'self.pre_trigger'}
-                elif self.dig.par.FWTYPE.value == 'SCOPE'   : ch.par.POSTTRG.value    = f'{self.record_length - self.pre_trigger}'
+                # for SCOPE, this doesnt need to be set per channel, but i prefer these to be set together
+                # even if its a bit redundant
+                if   self.dig.par.FWTYPE.value == 'DPP-PSD' : ch.par.CH_PRETRIG.value = f'{self.pre_trigger}'
+                elif self.dig.par.FWTYPE.value == 'SCOPE'   : self.dig.par.POSTTRG.value    = f'{self.record_length - self.pre_trigger}'
 
                 # ensure self trigger only enabled when you don't have SWTRIG enabled
                 if ch_dict['self_trigger'] and self.trigger_mode != 'SWTRIG':
@@ -296,7 +298,7 @@ class Digitiser():
                 for ch in ch_mapping.keys():
                     output.append((self.waveform_size[ch], self.waveform[ch], ch, self.timestamp))
             # DPP-PSD triggers per channel, so needs to be treated as such
-            elif self.dig.par.FWTYPE.value == 'DPP-PSD'
+            elif self.dig.par.FWTYPE.value == 'DPP-PSD':
                 output = [(self.waveform_size, self.waveform, self.channel, self.timestamp)]
 
             return output
@@ -335,7 +337,7 @@ class Digitiser():
                 for ch in ch_mapping.keys():
                     output.append((self.waveform_size[ch], self.waveform[ch], ch, self.timestamp))
             # DPP-PSD triggers per channel, so needs to be treated as such
-            elif self.dig.par.FWTYPE.value == 'DPP-PSD'
+            elif self.dig.par.FWTYPE.value == 'DPP-PSD':
                 output = [(self.waveform_size, self.waveform, self.channel, self.timestamp)]
 
             return output
