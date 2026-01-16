@@ -125,20 +125,20 @@ class AcquisitionWorker(Thread):
                             continue
                         # extract each channel separately and push to buffers
                         for channel_data in data:
-                        # Non-blocking put to visual buffer
-                        if self.display_buffer.full():
-                            try:
-                                self.display_buffer.get_nowait()  # discard oldest
-                            except Empty:
-                                pass
+                            # Non-blocking put to visual buffer
+                            if self.display_buffer.full():
+                                try:
+                                    self.display_buffer.get_nowait()  # discard oldest
+                                except Empty:
+                                    pass
 
-                        # Push to display buffer (etc.)
-                        if not self.display_buffer.full():
-                            self.display_buffer.put_nowait(channel_data)
+                            # Push to display buffer (etc.)
+                            if not self.display_buffer.full():
+                                self.display_buffer.put_nowait(channel_data)
 
-                        # Notify controller/UI
-                        if self.data_ready_callback:
-                            self.data_ready_callback()
+                            # Notify controller/UI
+                            if self.data_ready_callback:
+                                self.data_ready_callback()
 
                     except Exception as e:
                         logging.exception(f"Acquisition error: {e}")
