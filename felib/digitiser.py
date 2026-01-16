@@ -161,10 +161,10 @@ class Digitiser():
                 elif self.dig.par.FWTYPE.value == 'SCOPE'   : self.dig.par.POSTTRG.value    = f'{self.record_length - self.pre_trigger}'
 
                 # ensure self trigger only enabled when you don't have SWTRIG enabled
+                # recall that this functions like so for DPP-PSD, with SCOPE, if a channel is enabled the self-trigger is also enabled
                 if ch_dict['self_trigger'] and self.trigger_mode != 'SWTRIG':
                     if self.dig.par.FWTYPE.value    == 'DPP-PSD' : ch.par.CH_SELF_TRG_ENABLE.value = 'TRUE'
 
-                    ch.par.CH_SELF_TRG_ENABLE.value = 'TRUE'
                     ch.par.CH_THRESHOLD.value       = str(ch_dict['threshold'])
                 else:
                     # doesn't reset by default! so forcing this here
@@ -176,7 +176,7 @@ class Digitiser():
                     ch.par.CH_POLARITY.value        = 'POLARITY_NEGATIVE'
 
                 else:
-                    ch.par.CH_SELF_TRG_ENABLE.value = 'FALSE'
+                    if self.dig.par.FWTYPE.value    == 'DPP-PSD' : ch.par.CH_SELF_TRG_ENABLE.value = 'FALSE'
                 # technically customisable
 
 
@@ -295,7 +295,7 @@ class Digitiser():
             if self.dig.par.FWTYPE.value == 'SCOPE':
                 output = []
                 # using the mapping extract the relevant channels
-                for ch in ch_mapping.keys():
+                for ch in self.ch_mapping.keys():
                     output.append((self.waveform_size[ch], self.waveform[ch], ch, self.timestamp))
             # DPP-PSD triggers per channel, so needs to be treated as such
             elif self.dig.par.FWTYPE.value == 'DPP-PSD':
@@ -334,7 +334,7 @@ class Digitiser():
             if self.dig.par.FWTYPE.value == 'SCOPE':
                 output = []
                 # using the mapping extract the relevant channels
-                for ch in ch_mapping.keys():
+                for ch in self.ch_mapping.keys():
                     output.append((self.waveform_size[ch], self.waveform[ch], ch, self.timestamp))
             # DPP-PSD triggers per channel, so needs to be treated as such
             elif self.dig.par.FWTYPE.value == 'DPP-PSD':
