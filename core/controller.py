@@ -86,7 +86,7 @@ class Controller:
         self.h5_flush_size = self.rec_dict['h5_flush_size']
         self.writer_buffer = Queue(maxsize=1024)
         self.writer = Writer(
-                            ch_map        = self.ch_mapping
+                            ch_map        = self.ch_mapping,
                             flush_size    = self.h5_flush_size,
                             write_buffer  = self.writer_buffer,
                             stop_event    = self.writer_stop_event,
@@ -189,7 +189,7 @@ class Controller:
         '''
         self.recording = True
         if not self.writer.is_alive():
-            self.writer.start
+            self.writer.start()
             logging.info(f'Writer thread started.')
 
         logging.info("Starting recording.")
@@ -201,7 +201,7 @@ class Controller:
         self.recording = False
         self.writer_stop_event.set()
 
-        self.writers.join(timeout=2)
+        self.writer.join(timeout=2)
 
         logging.info("Writer thread stopping recording.")
 
@@ -218,8 +218,7 @@ class Controller:
 
         # Writer threads
         self.writer_stop_event.set()
-        for w in self.writers:
-            w.join(timeout=2)
+        self.writer.join(timeout=2)
 
         clean_shutdown = True
 
@@ -227,10 +226,9 @@ class Controller:
             clean_shutdown = False
             logging.warning("AcquisitionWorker did not stop cleanly.")
 
-        for w in self.writers:
-            if w.is_alive():
-                clean_shutdown = False
-                logging.warning(f"Writer (channel {w.ch}) did not stop cleanly.")
+        if self.writer.is_alive():
+            clean_shutdown = False
+            logging.warning(f"Writer (channel {w.ch}) did not stop cleanly.")
 
         if clean_shutdown:
             logging.info("Controller shutdown complete.")

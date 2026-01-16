@@ -12,7 +12,7 @@ class Writer(Thread):
     Writes channel data to h5 file.
     '''
     def __init__(self,
-                 ch           : int,
+                 ch_map       : dict,
                  flush_size   : int,
                  write_buffer : Queue,
                  stop_event   : Event,
@@ -25,21 +25,19 @@ class Writer(Thread):
         '''
 
         super().__init__(daemon=True)
-        self.ch = ch
         self.flush_size = flush_size
         self.write_buffer = write_buffer
         self.stop_event = stop_event
         self.rec_config = rec_config
         self.dig_config = dig_config
-        self.filename = f"some_name_ch_{self.ch}"
         self.local_buffer = []
         self.wf_size   = None
 
         if 'file_name' in self.rec_config:
             file_path = self.rec_config['file_name']
-            file_path = f'{file_path}_{self.ch}_{TIMESTAMP}.h5'
+            file_path = f'{file_path}_data_{TIMESTAMP}.h5'
         else:
-            file_path = f'{self.ch}_{TIMESTAMP}.h5'
+            file_path = f'data_{TIMESTAMP}.h5'
         # initialise the h5, one per channel, each handled on a separate thread
         try:
             self.h5file = tb.open_file(f'{file_path}', mode='a')
@@ -50,8 +48,10 @@ class Writer(Thread):
         io.create_config_table(self.h5file, self.rec_config, 'rec_conf', 'recording config')
         io.create_config_table(self.h5file, self.dig_config, 'dig_conf', 'digitiser config')
         # raw waveform group constructed
-        self.rwf_group = self.h5file.create_group('/', f'ch_{ch}', 'raw waveform')
-
+        self.rwf_group = {}
+        for ch in ch_map.keys():
+            self.rwf_group[ch] = self.h5file.create_group('/', f'ch_{ch}', 'raw waveform')
+        self.rwf_table = {}
 
     def write_h5(self):
         '''
@@ -62,24 +62,24 @@ class Writer(Thread):
         where ADCs is the actual raw waveform array
         '''
 
-        for wf_size, rwf, evt, ts in self.local_buffer:
+        for wf_size, ch, rwf, evt, ts in self.local_buffer:
         # if we know the size of the waveforms already, don't create the class again.
             if self.wf_size is None:
                 self.wf_size = wf_size
                 self.rwf_class = df_class.return_rwf_class(self.dig_config['dig_gen'], self.wf_size)
-                self.rwf_table = self.h5file.create_table(self.rwf_group, 'rwf', self.rwf_class, "raw waveforms")
-                self.rows      =  self.rwf_table.row
+                self.rwf_table[ch] = self.h5file.create_table(self.rwf_group[ch], 'rwf', self.rwf_class, "raw waveforms")
+                self.rows      =  self.rwf_table[ch].row
 
             self.rows['evt_no']    = evt
             self.rows['rwf']       = rwf
-            self.rows['channel']   = self.ch
+            self.rows['channel']   = ch
             self.rows['timestamp'] = ts
             self.rows.append()
 
         self.local_buffer.clear()
 
         # flush as fast as the buffer provides
-        self.rwf_table.flush()
+        self.rwf_table[ch].flush()
         pass
 
 
@@ -87,7 +87,7 @@ class Writer(Thread):
         '''
         Writer hot loop.
         '''
-        logging.info(f"Writer thread started (ch {self.ch}).")
+        logging.info(f"Writer thread started.")
         try:
             while not self.stop_event.is_set():
                 # First load data from shared buffer into local buffer
@@ -105,11 +105,11 @@ class Writer(Thread):
                 self.write_h5()
 
         except Exception as e:
-            logging.exception(f"Fatal error in Writer (ch {self.ch}): {e}")
+            logging.exception(f"Fatal error in Writer: {e}")
 
         # When stop_event() is set, call cleanup()
         self.cleanup()
-        logging.info(f"Writer thread exited cleanly (ch {self.ch}).")
+        logging.info(f"Writer thread exited cleanly.")
 
     def cleanup(self):
         '''
