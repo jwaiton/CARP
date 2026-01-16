@@ -72,6 +72,7 @@ class Writer(Thread):
 
             self.rows['evt_no']    = evt
             self.rows['rwf']       = rwf
+            self.rows['channel']   = self.ch
             self.rows['timestamp'] = ts
             self.rows.append()
 
