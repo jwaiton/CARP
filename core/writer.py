@@ -83,7 +83,8 @@ class Writer(Thread):
         self.local_buffer.clear()
 
         # flush as fast as the buffer provides
-        self.rwf_table[ch].flush()
+        for ch_local in self.ch_map.keys():
+            self.rwf_table[ch_local].flush()
         pass
 
 
