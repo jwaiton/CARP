@@ -84,17 +84,16 @@ class Controller:
         self.ch_mapping = get_ch_mapping(self.rec_dict)
         self.num_ch = len(self.ch_mapping)
         self.h5_flush_size = self.rec_dict['h5_flush_size']
-        self.writer_buffers = [Queue(maxsize=1024) for _ in range(self.num_ch)]
-        self.writers = [Writer(
-                            ch=curr_ch,
-                            flush_size=self.h5_flush_size,
-                            write_buffer=self.writer_buffers[i],
-                            stop_event=self.writer_stop_event,
-                            rec_config = read_config_file(self.rec_config),
-                            dig_config = read_config_file(self.dig_config),
-                            TIMESTAMP = datetime.now().strftime("%H:%M:%S")
+        self.writer_buffer = Queue(maxsize=1024)
+        self.writer = Writer(
+                            ch_map        = self.ch_mapping
+                            flush_size    = self.h5_flush_size,
+                            write_buffer  = self.writer_buffer,
+                            stop_event    = self.writer_stop_event,
+                            rec_config    = read_config_file(self.rec_config),
+                            dig_config    = read_config_file(self.dig_config),
+                            TIMESTAMP     = datetime.now().strftime("%H:%M:%S")
                         )
-                        for curr_ch, i in self.ch_mapping.items()]
 
         # gui second
         self.app = QApplication([])
@@ -130,12 +129,8 @@ class Controller:
 
                 # push data to writer buffer
                 if self.recording:
-                    write_data = wf_size, ADCs, self.event_counter, timestamp
-
-                    # multi channel writing
-                    ch = int(ch)
-                    i = int(self.ch_mapping[ch])
-                    self.writer_buffers[i].put(write_data)
+                    write_data = wf_size, ch, ADCs, self.event_counter, timestamp
+                    self.writer_buffer.put(write_data)
 
                 self.event_counter += 1
 
@@ -193,10 +188,9 @@ class Controller:
         Start recording data.
         '''
         self.recording = True
-        for w in self.writers:
-            if not w.is_alive():
-                w.start()
-                logging.info(f"Writer (channel {w.ch}) thread started.")
+        if not self.writer.is_alive():
+            self.writer.start
+            logging.info(f'Writer thread started.')
 
         logging.info("Starting recording.")
 
@@ -207,10 +201,9 @@ class Controller:
         self.recording = False
         self.writer_stop_event.set()
 
-        for w in self.writers:
-            w.join(timeout=2)
+        self.writers.join(timeout=2)
 
-        logging.info("Stopping recording.")
+        logging.info("Writer thread stopping recording.")
 
     def shutdown(self):
         '''
