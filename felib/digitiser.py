@@ -162,22 +162,21 @@ class Digitiser():
 
                 # ensure self trigger only enabled when you don't have SWTRIG enabled
                 # recall that this functions like so for DPP-PSD, with SCOPE, if a channel is enabled the self-trigger is also enabled
-                if ch_dict['self_trigger'] and self.trigger_mode != 'SWTRIG':
+                if (ch_dict['self_trigger'] and self.trigger_mode != 'SWTRIG'):
                     if self.dig.par.FWTYPE.value    == 'DPP-PSD' : ch.par.CH_SELF_TRG_ENABLE.value = 'TRUE'
+                    if self.dig.par.FWTYPE.value    == 'SCOPE'   : ch.par.CH_TRG_GLOBAL_GEN.value  = 'TRUE'
 
                     ch.par.CH_THRESHOLD.value       = str(ch_dict['threshold'])
                 else:
                     # doesn't reset by default! so forcing this here
                     if self.dig.par.FWTYPE.value    == 'DPP-PSD' : ch.par.CH_SELF_TRG_ENABLE.value = 'FALSE'
+                    if self.dig.par.FWTYPE.value    == 'SCOPE'   : ch.par.CH_TRG_GLOBAL_GEN.value  = 'FALSE'
 
                 if ch_dict['polarity'] == 'positive':
                     ch.par.CH_POLARITY.value        = 'POLARITY_POSITIVE'
                 elif ch_dict['polarity'] == 'negative':
                     ch.par.CH_POLARITY.value        = 'POLARITY_NEGATIVE'
 
-                else:
-                    if self.dig.par.FWTYPE.value    == 'DPP-PSD' : ch.par.CH_SELF_TRG_ENABLE.value = 'FALSE'
-                # technically customisable
 
 
 
