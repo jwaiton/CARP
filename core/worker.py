@@ -74,7 +74,7 @@ class AcquisitionWorker(Thread):
             logging.info("Digitiser acquisition started successfully.")
         except Exception as e:
             logging.exception(f"Start acquisition failed: {e}")
-    
+
     def connect_digitiser(self, dig_config, rec_config):
         '''
         Connect to digitiser with given configs.
@@ -123,21 +123,22 @@ class AcquisitionWorker(Thread):
                         data = self.digitiser.acquire()
                         if data is None:
                             continue
+                        # extract each channel separately and push to buffers
+                        for channel_data in data:
+                            # Non-blocking put to visual buffer
+                            if self.display_buffer.full():
+                                try:
+                                    self.display_buffer.get_nowait()  # discard oldest
+                                except Empty:
+                                    pass
 
-                        # Non-blocking put to visual buffer
-                        if self.display_buffer.full():
-                            try:
-                                self.display_buffer.get_nowait()  # discard oldest
-                            except Empty:
-                                pass
+                            # Push to display buffer (etc.)
+                            if not self.display_buffer.full():
+                                self.display_buffer.put_nowait(channel_data)
 
-                        # Push to display buffer (etc.)
-                        if not self.display_buffer.full():
-                            self.display_buffer.put_nowait(data)
-
-                        # Notify controller/UI
-                        if self.data_ready_callback:
-                            self.data_ready_callback()
+                            # Notify controller/UI
+                            if self.data_ready_callback:
+                                self.data_ready_callback()
 
                     except Exception as e:
                         logging.exception(f"Acquisition error: {e}")
@@ -154,7 +155,7 @@ class AcquisitionWorker(Thread):
 
     def cleanup(self):
         '''
-        Cleans up digitiser by calling stop_acquisition and its destructor. 
+        Cleans up digitiser by calling stop_acquisition and its destructor.
         '''
         if self.digitiser:
             if self.digitiser.isAcquiring:

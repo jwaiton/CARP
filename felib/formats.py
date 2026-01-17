@@ -5,7 +5,7 @@ def DPP(nch, record_length):
     DPP-DSD format
     nch - number of channels
     '''
-    
+
     # Configure endpoint
     data_format = [
         {
@@ -49,6 +49,39 @@ def DPP(nch, record_length):
             'name': 'WAVEFORM_SIZE',
             'type': 'SIZE_T',
             'dim': 0,
+        }
+    ]
+
+    return data_format
+
+
+def SCOPE(nch, record_length):
+    '''
+    SCOPE format
+    nch - number of channels
+    '''
+
+    # Configure endpoint
+    data_format = [
+        {
+            'name': 'EVENT_SIZE',
+            'type': 'SIZE_T',
+        },
+        {
+            'name': 'TIMESTAMP',
+            'type': 'U64',
+        },
+        {
+            'name': 'WAVEFORM',
+            'type': 'U16',
+            'dim': 2,
+            'shape': [nch, record_length],
+        },
+        {
+            'name': 'WAVEFORM_SIZE',
+            'type': 'SIZE_T',
+            'dim': 1,
+            'shape': [nch],
         }
     ]
 

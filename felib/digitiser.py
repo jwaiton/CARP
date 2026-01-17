@@ -8,6 +8,7 @@ import logging
 from typing import Optional
 import time
 
+from core.functions import get_ch_mapping
 from felib.dig1_utils import generate_digitiser_uri
 
 import felib.formats as formats
@@ -42,12 +43,12 @@ class Digitiser():
         else:
             logging.error("Invalid digitiser generation specified in the configuration.")
             #raise ValueError("Invalid digitiser generation specified in the configuration.")
-        
+
         self.URI = self.generate_uri()
         self.isAcquiring = False
         self.isConnected = False
         self.isRecording = False
-        
+
         self.data_format = []
         self.endpoint = None
 
@@ -74,15 +75,15 @@ class Digitiser():
         else:
             logging.error("Invalid digitiser generation specified in the configuration.")
             #raise ValueError("Invalid digitiser generation specified in the configuration.")
-        
+
 
     def connect(self):
         '''
         Connect to the digitiser using the generated URI.
         '''
-        
+
         logging.info(f'Attemping connection to digitiser {self.dig_name} at {self.URI}.')
-        
+
         # fake connection for debugging
         if self.dig_name == 'debug':
             self.dig = None
@@ -114,7 +115,7 @@ class Digitiser():
             return None
 
 
-    def configure(self, 
+    def configure(self,
                   dig_dict : dict,
                   rec_dict : dict):
                   #record_length: Optional[int] = 0,
@@ -122,11 +123,14 @@ class Digitiser():
                   #trigger_level: Optional[str] = 'SWTRG'):
         '''
         Configure the digitiser with the provided settings and calibrate it.
-        '''        
+        '''
 
         self.record_length = rec_dict.get('record_length')
         self.pre_trigger   = rec_dict.get('pre_trigger')
         self.trigger_mode  = rec_dict.get('trigger_mode')
+
+        # extract channel mapping
+        self.ch_mapping    = get_ch_mapping(rec_dict)
 
         try:
 
@@ -143,48 +147,78 @@ class Digitiser():
 
                 # extract channel config of interest
                 ch_dict = rec_dict.get(f'ch{i}')
-                
+
+                # disable channel if not explicitly called
                 if ch_dict is None:
+                    ch.par.CH_ENABLED.value = 'FALSE'
                     continue
-                
-                ch.par.CH_ENABLED.value      = 'TRUE' if ch_dict['enabled'] else 'FALSE'
-                ch.par.CH_PRETRG.value = f'{self.pre_trigger}'
+
+                # normal channel management
+                ch.par.CH_ENABLED.value = 'TRUE' if ch_dict['enabled'] else 'FALSE'
+                # for SCOPE, this doesnt need to be set per channel, but i prefer these to be set together
+                # even if its a bit redundant
+                if   self.dig.par.FWTYPE.value == 'DPP-PSD' : ch.par.CH_PRETRIG.value = f'{self.pre_trigger}'
+                elif self.dig.par.FWTYPE.value == 'SCOPE'   : self.dig.par.POSTTRG.value    = f'{self.record_length - self.pre_trigger}'
 
                 # ensure self trigger only enabled when you don't have SWTRIG enabled
-                if ch_dict['self_trigger'] and self.trigger_mode != 'SWTRIG':
-                    ch.par.CH_SELF_TRG_ENABLE.value = 'TRUE'
+                # recall that this functions like so for DPP-PSD, with SCOPE, if a channel is enabled the self-trigger is also enabled
+                if (ch_dict['self_trigger'] and self.trigger_mode != 'SWTRIG'):
+                    if self.dig.par.FWTYPE.value    == 'DPP-PSD' : ch.par.CH_SELF_TRG_ENABLE.value = 'TRUE'
+                    if self.dig.par.FWTYPE.value    == 'SCOPE'   : ch.par.CH_TRG_GLOBAL_GEN.value  = 'TRUE'
+
                     ch.par.CH_THRESHOLD.value       = str(ch_dict['threshold'])
                 else:
                     # doesn't reset by default! so forcing this here
-                    ch.par.CH_SELF_TRG_ENABLE.value = 'FALSE'
-                
+                    if self.dig.par.FWTYPE.value    == 'DPP-PSD' : ch.par.CH_SELF_TRG_ENABLE.value = 'FALSE'
+                    if self.dig.par.FWTYPE.value    == 'SCOPE'   : ch.par.CH_TRG_GLOBAL_GEN.value  = 'FALSE'
+
                 if ch_dict['polarity'] == 'positive':
                     ch.par.CH_POLARITY.value        = 'POLARITY_POSITIVE'
                 elif ch_dict['polarity'] == 'negative':
                     ch.par.CH_POLARITY.value        = 'POLARITY_NEGATIVE'
 
-                else:
-                    ch.par.CH_SELF_TRG_ENABLE.value = 'FALSE'
-                # technically customisable
-                
+
 
 
             # calculate the true reclen value for outputting
             reclen_ns = int(self.dig.par.RECLEN.value)
             self.reclen    = int(reclen_ns / int(1e3 / self.dig_info['sample_rate']))
 
-            # if DPP, need to specify that you're looking at waveforms specifically.
-            if self.dig.par.FWTYPE.value == 'DPP-PSD':
-                self.dig.par.WAVEFORMS.value = 'TRUE'
-                self.data_format = formats.DPP(int(self.dig.par.NUMCH.value), int(self.reclen))
-                # setting up probe types (READ UP ON THIS)
-                self.dig.vtrace[0].par.VTRACE_PROBE.value = 'VPROBE_INPUT'
-            
+            # set up data format
+            match self.dig.par.FWTYPE.value:
+                case 'DPP-PSD':
+                    # enforce waveform formatting
+                    self.dig.par.WAVEFORMS.value = 'TRUE'
+                    self.data_format = formats.DPP(  int(self.dig.par.NUMCH.value), int(self.reclen))
+                    # setting up probe types (READ UP ON THIS)
+                    self.dig.vtrace[0].par.VTRACE_PROBE.value = 'VPROBE_INPUT'
+                case 'SCOPE':
+                    self.data_format = formats.SCOPE(int(self.dig.par.NUMCH.value), int(self.reclen))
+                case _:
+                    logging.exception(f"Firmware type {self.dig.par.FWTYPE.value} not recognised.\nCurrent FWs available are DPP-PSD and SCOPE")
+
             endpoint_path = (self.dig.par.FWTYPE.value).replace('-', '')
             self.endpoint = self.dig.endpoint[endpoint_path]
             self.data = self.endpoint.set_read_data_format(self.data_format)
 
-        
+
+            # generalised extraction of data parameters
+            match self.dig.par.FWTYPE.value:
+                case 'DPP-PSD':
+                    self.channel       = self.data[0].value
+                    self.timestamp     = self.data[1].value
+                    self.waveform_size = self.data[7].value
+                    self.waveform      = self.data[3].value
+                case 'SCOPE':
+                    # no channel parameter as channels are treated differently
+                    # all channels are within the dataset, check the data format to understand the shape
+                    self.timestamp     = self.data[1].value
+                    self.waveform_size = self.data[3].value
+                    self.waveform      = self.data[2].value
+                case _:
+                    logging.exception(f"Firmware type {self.dig.par.FWTYPE.value} not recognised.\nCurrent FWs available are DPP-PSD and SCOPE")
+
+
             logging.info(f"Digitiser configured:\nrecord length {self.record_length}, pre-trigger {self.pre_trigger}, trigger mode {self.trigger_mode}.")
         except Exception as e:
             logging.exception(f"Failed to configure recording parameters.\n{e}")
@@ -207,18 +241,18 @@ class Digitiser():
             self.dig.cmd.ARMACQUISITION()
         except Exception as e:
             logging.exception(f"Starting acquisition failed: {e}")
-        
+
         # start recording function
         #self.trigger_and_record()
         #try:
             #self.dig.cmd.START()
-            #self.collect = True    
+            #self.collect = True
             #print("Digitiser acquisition started.")
         #except Exception as e:
         #    raise RuntimeError(f"Failed to start digitiser acquisition.\n{e}")
              #self.collect = True
-        
-    
+
+
     def stop_acquisition(self):
         '''
         Stop the digitiser acquisition.
@@ -242,7 +276,7 @@ class Digitiser():
                 return self.SELFTRIG_record()
             case _:
                 logging.info(f'Trigger mode {self.trigger_mode} not currently implemented.')
-                self.stop_acquisition()    
+                self.stop_acquisition()
 
 
     def SW_record(self):
@@ -255,10 +289,19 @@ class Digitiser():
         try:
             self.endpoint.has_data(check_timeout)
             self.endpoint.read_data(read_timeout, self.data) # timeout first number in ms
-            wf_size = self.data[7].value
-            ADCs = self.data[3].value
-            ch = self.data[0].value
-            return (wf_size, ADCs, ch)
+
+            # SCOPE sends everything, even the disabled channels, so parse the relevant channels here
+            if self.dig.par.FWTYPE.value == 'SCOPE':
+                output = []
+                # using the mapping extract the relevant channels
+                for ch in self.ch_mapping.keys():
+                    output.append((self.waveform_size[ch], self.waveform[ch], ch, self.timestamp))
+            # DPP-PSD triggers per channel, so needs to be treated as such
+            elif self.dig.par.FWTYPE.value == 'DPP-PSD':
+                output = [(self.waveform_size, self.waveform, self.channel, self.timestamp)]
+
+            return output
+
         except error.Error as ex:
             #logging.exception("Error in readout:")
             if ex.code is error.ErrorCode.TIMEOUT:
@@ -266,16 +309,16 @@ class Digitiser():
             if ex.code is error.ErrorCode.STOP:
                 logging.exception("STOP")
                 raise ex
-        
+
         # ensure the input and trigger are acceptable (I think?)
         #assert self.data[3].value == 1 # VPROBE INPUT? I need to understand this
         #assert self.data[6].value == 1 # VPROBE TRIGGER?
-        
+
         #waveform_size = self.data[7].value
         #valid_sample_range = np.arange(0, waveform_size, dtype = waveform_size.dtype)
 
-        
-    
+
+
     def SELFTRIG_record(self):
         '''
         Trigger on channels
@@ -285,10 +328,19 @@ class Digitiser():
         try:
             self.endpoint.has_data(check_timeout)
             self.endpoint.read_data(read_timeout, self.data)
-            wf_size = self.data[7].value
-            ADCs = self.data[3].value
-            ch = self.data[0].value
-            return (wf_size, ADCs, ch)
+
+            # SCOPE sends everything, even the disabled channels, so parse the relevant channels here
+            if self.dig.par.FWTYPE.value == 'SCOPE':
+                output = []
+                # using the mapping extract the relevant channels
+                for ch in self.ch_mapping.keys():
+                    output.append((self.waveform_size[ch], self.waveform[ch], ch, self.timestamp))
+            # DPP-PSD triggers per channel, so needs to be treated as such
+            elif self.dig.par.FWTYPE.value == 'DPP-PSD':
+                output = [(self.waveform_size, self.waveform, self.channel, self.timestamp)]
+
+            return output
+
         except error.Error as ex:
             #logging.exception("Error in readout:")
             if ex.code is error.ErrorCode.TIMEOUT:
